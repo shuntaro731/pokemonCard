@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
-import { StyleProp, StyleSheet, View, ViewStyle } from "react-native";
+import { StyleProp, StyleSheet, View, ViewProps, ViewStyle } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   Extrapolation,
@@ -141,7 +141,7 @@ export const ThreeDCard: React.FC<ThreeDCardProps> = ({
         ]}
         shouldRasterizeIOS={false}
         renderToHardwareTextureAndroid={false}
-        allowsEdgeAntialiasing={true}
+        {...({ allowsEdgeAntialiasing: true } as ViewProps)}
       >
         {/* ★修正3: 内側のViewで「背景」「ボーダー」「Overflow」を担当 */}
         <View style={styles.cardInner}>

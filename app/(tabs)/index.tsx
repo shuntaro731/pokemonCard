@@ -1,5 +1,5 @@
 import React from "react";
-import { Dimensions, StyleSheet, Text, View } from "react-native";
+import { Dimensions, StyleSheet, Text, View, Image } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ThreeDCard } from "../../components/ThreeDCard";
 
@@ -14,11 +14,13 @@ export default function App() {
         {/* コンポーネントを使用 */}
         <ThreeDCard width={CARD_WIDTH} height={CARD_HEIGHT}>
           {/* カードの中身を自由に記述 */}
-          <View style={styles.circle} />
-          <Text style={styles.title}>ポケモンカードだよ</Text>
+          <Image
+            source={require("../../assets/pikachu.png")}
+            style={styles.image}
+          />
+          <Text style={styles.title}>PokemonCard</Text>
           <Text style={styles.subtitle}>Drag me</Text>
         </ThreeDCard>
-
       </View>
     </GestureHandlerRootView>
   );
@@ -32,13 +34,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     zIndex: -1,
   },
-  circle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "cyan",
+  image: {
+    width: 200,
+    height: 200,
     marginBottom: 20,
-    opacity: 0.8,
+    resizeMode: "contain",
   },
   title: {
     color: "white",
