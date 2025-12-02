@@ -9,6 +9,7 @@ import Animated, {
   Extrapolation,
   interpolate,
   useAnimatedStyle,
+  useDerivedValue, // ★追加: 値を計算して作るためのフック
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
@@ -19,84 +20,66 @@ const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.8;
 const CARD_HEIGHT = CARD_WIDTH * 1.5;
 
-// カードの最大傾き角度（度）
-// 15度くらいが上品でおすすめです
-const MAX_ANGLE = 10;
+const MAX_ANGLE = 12; // 動きが柔らかくなるので、少し角度を戻しても自然に見えます（8→15）
+const PARALLAX_OFFSET = 2;
 
-const PARALLAX_OFFSET = 0; // 中身をどれくらい浮き上がらせるか（ピクセル）、値が大きいほど手前に浮いているように見えます
+// ★追加: 慣性の物理設定
+// ここをいじると「重さ」や「粘り気」が変わります
+const PHYSICS_CONFIG = {
+  mass: 1,        // 重さ（大きいほどドッシリする）
+  stiffness: 120, // バネの硬さ（小さいほど指から遅れてついてくる）
+  damping: 15,    // 摩擦（小さいほど揺れが止まらない）
+};
 
 export default function App() {
-  const rotateX = useSharedValue(0);
-  const rotateY = useSharedValue(0);
+  // 1. 【入力】指の動きを受け取る「生の」値
+  const inputX = useSharedValue(0);
+  const inputY = useSharedValue(0);
 
-  // ジェスチャー設定
+  // 2. 【出力】入力値をバネの動きで追いかける値（これが慣性を生む）
+  // useDerivedValueを使うと、inputの値が変わるたびに自動計算されます
+  const rotateX = useDerivedValue(() => {
+    return withSpring(inputX.value, PHYSICS_CONFIG);
+  });
+  
+  const rotateY = useDerivedValue(() => {
+    return withSpring(inputY.value, PHYSICS_CONFIG);
+  });
+
   const gesture = Gesture.Pan()
     .onUpdate((event) => {
-      // 感度調整: 指の移動量を適度に抑えて回転角度に変換
-      rotateX.value = event.translationY * -0.3;
-      rotateY.value = event.translationX * 0.3;
+      // ここでは input（目標値）だけを更新します
+      // rotateX/Y は自動的に withSpring で追従してきます
+      inputX.value = event.translationY * -0.3;
+      inputY.value = event.translationX * 0.3;
     })
     .onEnd(() => {
-      // 指を離したらバネの動きで元に戻る
-      rotateX.value = withSpring(0);
-      rotateY.value = withSpring(0);
+      // 指を離したら目標値を0に戻すだけ
+      // あとは物理演算で勝手にゆら〜っと戻ります
+      inputX.value = 0;
+      inputY.value = 0;
     });
 
-  // 1. カード全体の回転アニメーション
   const cardAnimatedStyle = useAnimatedStyle(() => {
-    // 傾きを MAX_ANGLE で制限（CLAMP）
-    const rX = interpolate(
-      rotateX.value,
-      [-MAX_ANGLE, MAX_ANGLE],
-      [-MAX_ANGLE, MAX_ANGLE],
-      Extrapolation.CLAMP
-    );
-    const rY = interpolate(
-      rotateY.value,
-      [-MAX_ANGLE, MAX_ANGLE],
-      [-MAX_ANGLE, MAX_ANGLE],
-      Extrapolation.CLAMP
-    );
+    const rX = interpolate(rotateX.value, [-MAX_ANGLE, MAX_ANGLE], [-MAX_ANGLE, MAX_ANGLE], Extrapolation.CLAMP);
+    const rY = interpolate(rotateY.value, [-MAX_ANGLE, MAX_ANGLE], [-MAX_ANGLE, MAX_ANGLE], Extrapolation.CLAMP);
 
     return {
       transform: [
-        { perspective: 1000 }, // 3D効果の強さ（小さいほどパースがきつい）
+        { perspective: 1000 },
         { rotateX: `${rX}deg` },
         { rotateY: `${rY}deg` },
       ],
     };
   });
 
-  // 2. 中身のパララックス（視差）アニメーション
   const contentAnimatedStyle = useAnimatedStyle(() => {
-    // 傾きと「逆方向」に移動させることで、手前に浮いているように見せる
-    const translateX = interpolate(
-      rotateY.value,
-      [-MAX_ANGLE, MAX_ANGLE],
-      [PARALLAX_OFFSET, -PARALLAX_OFFSET], // ★反転させるのがポイント
-      Extrapolation.CLAMP
-    );
-    
-    const translateY = interpolate(
-      rotateX.value,
-      [-MAX_ANGLE, MAX_ANGLE],
-      [PARALLAX_OFFSET, -PARALLAX_OFFSET], // ★反転
-      Extrapolation.CLAMP
-    );
+    const translateX = interpolate(rotateY.value, [-MAX_ANGLE, MAX_ANGLE], [PARALLAX_OFFSET, -PARALLAX_OFFSET], Extrapolation.CLAMP);
+    const translateY = interpolate(rotateX.value, [-MAX_ANGLE, MAX_ANGLE], [PARALLAX_OFFSET, -PARALLAX_OFFSET], Extrapolation.CLAMP);
 
-    // ほんの少し逆回転させて、要素を正面に向けようとする補正（リッチな質感用）
-    const reverseRotateX = interpolate(
-      rotateX.value,
-      [-MAX_ANGLE, MAX_ANGLE],
-      [MAX_ANGLE * 0.1, -MAX_ANGLE * 0.1], 
-      Extrapolation.CLAMP
-    );
-    const reverseRotateY = interpolate(
-      rotateY.value,
-      [-MAX_ANGLE, MAX_ANGLE],
-      [MAX_ANGLE * 0.1, -MAX_ANGLE * 0.1], 
-      Extrapolation.CLAMP
-    );
+    // 逆回転補正
+    const reverseRotateX = interpolate(rotateX.value, [-MAX_ANGLE, MAX_ANGLE], [MAX_ANGLE * 0.1, -MAX_ANGLE * 0.1], Extrapolation.CLAMP);
+    const reverseRotateY = interpolate(rotateY.value, [-MAX_ANGLE, MAX_ANGLE], [MAX_ANGLE * 0.1, -MAX_ANGLE * 0.1], Extrapolation.CLAMP);
 
     return {
       transform: [
@@ -108,71 +91,38 @@ export default function App() {
     };
   });
 
-  // 3. 光の反射（Sheen）アニメーション
   const sheenAnimatedStyle = useAnimatedStyle(() => {
-    // 傾きに合わせて光の帯を大きくスライドさせる
-    // カードを右に傾ける(正) -> 光は左へ逃げる(負)
-    const translateX = interpolate(
-      rotateY.value,
-      [-MAX_ANGLE, MAX_ANGLE],
-      [120, -120],
-      Extrapolation.CLAMP
-    );
-
-    // 傾けたときだけ透明度を上げてキラッとさせる
-    const opacity = interpolate(
-      Math.abs(rotateY.value),
-      [0, MAX_ANGLE],
-      [0.2, 0.5] // 中央では薄く、傾けると少し明るく
-    );
+    const translateX = interpolate(rotateY.value, [-MAX_ANGLE, MAX_ANGLE], [120, -120], Extrapolation.CLAMP);
+    const opacity = interpolate(Math.abs(rotateY.value), [0, MAX_ANGLE], [0.2, 0.5]);
 
     return {
       opacity,
-      transform: [
-        { translateX }, 
-        { scale: 1.3 } // カードより少し大きくして端が見えないように
-      ],
+      transform: [{ translateX }, { scale: 1.3 }],
     };
   });
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      {/* 背景 */}
       <View style={styles.backgroundLayer} />
-
       <View style={styles.contentContainer}>
         <GestureDetector gesture={gesture}>
-          {/* カードの外枠 */}
           <Animated.View style={[styles.card, cardAnimatedStyle]}>
-            
-            {/* 中身（テキストや円） */}
             <Animated.View style={[styles.cardContent, contentAnimatedStyle]}>
               <View style={styles.circle} />
               <Text style={styles.title}>3D Card</Text>
               <Text style={styles.subtitle}>Drag me!</Text>
             </Animated.View>
-
-            {/* 光の反射レイヤー（一番手前） */}
-            {/* pointerEvents="none" でタッチ操作を透過させる */}
+            
             <View style={styles.sheenContainer} pointerEvents="none">
               <Animated.View style={[styles.sheenInner, sheenAnimatedStyle]}>
                 <LinearGradient
-                  // 上品で薄い光のグラデーション
-                  colors={[
-                    'transparent', 
-                    'rgba(255, 255, 255, 0.05)', 
-                    'rgba(255, 255, 255, 0.25)', // ピークの明るさ
-                    'rgba(255, 255, 255, 0.05)', 
-                    'transparent'
-                  ]}
-                  // 斜めに入る光
+                  colors={['transparent', 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.05)', 'transparent']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0.5 }}
                   style={{ flex: 1 }}
                 />
               </Animated.View>
             </View>
-
           </Animated.View>
         </GestureDetector>
       </View>
@@ -204,7 +154,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 15,
     elevation: 10,
-    // 光がはみ出さないようにマスクする
     overflow: "hidden",
   },
   cardContent: {
@@ -213,14 +162,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     zIndex: 1,
   },
-  // 光沢を包括するコンテナ
   sheenContainer: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 2,
     borderRadius: 20,
     overflow: "hidden",
   },
-  // 実際に動く光の帯（カードより大きく作る）
   sheenInner: {
     width: "180%",
     height: "180%",
