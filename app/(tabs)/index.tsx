@@ -15,8 +15,8 @@ export default function App() {
         <ThreeDCard width={CARD_WIDTH} height={CARD_HEIGHT}>
           {/* カードの中身を自由に記述 */}
           <View style={styles.circle} />
-          <Text style={styles.title}>3D Card</Text>
-          <Text style={styles.subtitle}>Drag me!</Text>
+          <Text style={styles.title}>ポケモンカードだよ</Text>
+          <Text style={styles.subtitle}>Drag me</Text>
         </ThreeDCard>
 
       </View>
